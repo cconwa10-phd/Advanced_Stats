@@ -1,0 +1,51 @@
+---
+title: "Lab1_Advanced Stats"
+output: pdf_document
+---
+1. What is the mean and variance for the loaded dice?
+A: Mean = 4.5, Var = 3.25
+```{r}
+propabilities <- c(0.1,0.1,0.1,0.1,0.1,0.5)
+values <- c(1,2,3,4,5,6)
+expect_mean <- weighted.mean(values, propabilities)
+variance <- sum((propabilities*(values^2))) - expect_mean^2
+
+expect_mean
+variance
+```
+
+2. Write a function in R that "rolls" this dice; return a vector containing the rolls
+3. Make a histogram of some large number of rolls. Do the rolls of the loaded die approximate a uniform distribution?
+A: No, because not all the results are equally likely, for instance, rolling a 6 has a higher probability of happening than 1-5.
+```{r}
+iterations <- sample(values, 10000, replace=TRUE, prob=propabilities)
+hist(iterations)
+
+iterations_func <- function(num_rolls)
+{
+  iteration <- sample(values, num_rolls, replace=TRUE, prob=propabilities)
+  return(iteration)
+}
+```
+
+4. Modify the code on Slide #58 of lecture #2 so that the means vs. trial size plots are from the loaded die.  Generate these plots a few times.  How many rolls appear to be necessary to get convergence on the expected values for the mean and variance?
+A: Var & Mean = 3000 rolls
+
+```{r}
+trialSize <- c(5,10,15,20,25,30,40,50,100,200,300,400,500,1000,2000,3000,4000,5000,10000,20000,30000, 100000)
+means <- vector(mode = "double", length = length(trialSize))
+variances <- vector(mode = "double", length = length(trialSize))
+
+for(i in 1:length(trialSize))
+{
+  rolls <- vector(length = trialSize[i], mode = "double")
+  rolls <- iterations_func(trialSize[i])
+  means[i] <- mean(rolls);
+  variances[i] <- var(rolls)
+}
+plot(log10(trialSize), means)
+lines(log10(trialSize), rep(4.5, length(trialSize)))
+plot(log10(trialSize), variances)
+lines(log10(trialSize), rep(3.25, length(trialSize)))
+```
+
