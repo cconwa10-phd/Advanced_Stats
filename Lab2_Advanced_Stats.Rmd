@@ -1,0 +1,270 @@
+---
+title: "Lab2_Advanced Stats"
+output: pdf_document
+---
+
+Question 1
+
+1. You walk into the “occasionally dishonest casino”  with prior probabilities and likelihoods set to the values in slides 21-25 of lecture #4. (that is, a “loaded” die has a 10% chance of getting a 1-5 and a 50% chance of getting a 6 but 99% of the dice are fair)  
+
+You pick up one die and with it roll:  
+
+2 3 2 6 3 5 6 2 6 6 2 6 6 2 3 6 6 6 5 6 6 5 6 6 6 6 6 4 6 3 3 3 6 6 5 6 6
+
+Make a graph of the posterior probability that you have picked up a loaded die as a function of the number of times you have rolled the die.
+
+Show your code…
+
+  You can represent the rolls as
+data<-c(2,3,2,6,3,5,6,2,6,6,2,6,6,2,3,6,6,6,5,6,6,5,6,6,6,6,6,4,6,3,3,3,6,6,5,6,6)
+
+```{r}
+prior <- c(0.01, 0.99)
+prob_loaded <- c(0.1,0.1,0.1,0.1,0.1,0.5)
+prob_fair <- c(1/6,1/6,1/6,1/6,1/6,1/6)
+data<-c(2,3,2,6,3,5,6,2,6,6,2,6,6,2,3,6,6,6,5,6,6,5,6,6,6,6,6,4,6,3,3,3,6,6,5,6,6)
+
+```
+
+```{r}
+posteriors_loaded <- vector(mode = "double", length = length(data))
+for(i in 1:length(data))
+{
+  denom <- prior[1]*prob_loaded[data[i]] + prior[2]*prob_fair[data[i]];
+  prior[1] = prior[1]*prob_loaded[data[i]]/denom
+  prior[2] = prior[2]*prob_fair[data[i]]/denom
+  posteriors_loaded[i] <- prior[1]
+}
+print(posteriors_loaded)
+```
+```{r}
+indices <- 1:length(posteriors_loaded)
+probabilities_loaded <- posteriors_loaded
+plot(indices,probabilities_loaded)
+
+```
+
+
+2. How many times on average would you need to roll a loaded die to be 99.999%  sure that it was loaded?  
+(Show your work)
+
+A: 56.6278
+
+```{r}
+prior <- c(0.01, 0.99)
+prob_loaded <- c(0.1,0.1,0.1,0.1,0.1,0.5)
+prob_fair <- c(1/6,1/6,1/6,1/6,1/6,1/6)
+
+dataoflikelihoodld <- function(value, likelihood, numruns)
+{
+   datad <- sample(value, numruns, prob = likelihood)
+   return(datad)
+}
+
+repeatrunld <- function(numruns)
+{
+    totalruns <- vector();
+    for(j in 1:numruns)
+    {
+      prior <- c(0.01, 0.99)
+      values <- c(1,2,3,4,5,6)
+      prob_loaded <- c(0.1,0.1,0.1,0.1,0.1,0.5)
+      prob_fair <- c(1/6,1/6,1/6,1/6,1/6,1/6)
+      probload <- vector();
+      probfair <- vector();
+      x <- vector();
+      indexes = 1;
+      while(prior[1] <= 0.99999)
+      {
+        data <- dataoflikelihoodld(values, prob_loaded, numruns = 1)
+        x[indexes] <- indexes
+        denom <- prior[1]*prob_loaded[data] + prior[2]*prob_fair[data];
+        prior[1] = prior[1]*prob_loaded[data]/denom
+        prior[2] = prior[2]*prob_fair[data]/denom
+        probload[indexes] <- prior[1]
+        probfair[indexes] <- prior[2]
+        indexes <- indexes + 1;
+      }
+      totalruns[j] <- tail(x, n=1)
+    }
+  hist(totalruns)
+  return(mean(totalruns))
+}
+print(repeatrunld(numruns = 10000))
+```
+
+
+
+
+Question 2
+
+You are consulting for a hospital.  They have a diagnostic test for a disease with a known background prevalence of 0.1%.
+
+The test has the following properties:
+p(positive result | person has disease) = 0.91
+p(negative result| person does not have disease) = 0.84
+
+The cost of running the test one time is $1.  The test can be repeated for each patient and the results of the
+test are independent of one another allowing for Bayesian updates.  The test always yields a positive or negative 
+result.
+
+The requirement of the hospital is that the test is repeated for each patient until a Bayesian posterior 
+of at least 0.99999 is reached.
+
+```{r}
+# Positive = 0.91, 0.09  Negative = 0.84, 0.16
+
+disease <- c(0.91, 0.09)
+nodisease <- c(0.16, 0.84)
+
+dataoflikelihood <- function(likelihood, numruns)
+{
+  data <- vector(mode="integer", length=numruns);
+  for(i in 1:numruns)
+  {
+    if(runif(1) <= likelihood[1])
+    {
+      data[i] <- 1;
+    }
+    else
+    {
+      data[i] <- 2;    
+    }
+  }
+  return(data)
+}
+
+postprobd <- 0.001
+postprobnd <- 1 - postprobd
+probdisease <- vector();
+probnodisease <- vector();
+ynvalues <- vector();
+x <- vector();
+indexes = 1;
+while(postprobd <= 0.99999)
+{
+   data <- dataoflikelihood(disease, 1)
+   x[indexes] <- indexes
+   ynvalues[indexes] <- data;
+   probdisease[indexes] <- postprobd;
+   probnodisease[indexes] <- postprobnd;
+   denom <- postprobd * disease[data] + postprobnd * nodisease[data];
+   postprobd = postprobd * disease[data]/denom;
+   postprobnd = postprobnd * nodisease[data]/denom;
+   
+   #plot(1:indexes,probdisease, ylim=c(0,1), xlim=c(1, indexes + 1))
+   #Sys.sleep(1);
+   indexes <- indexes + 1;
+}
+
+plot(x, probdisease)
+
+```
+
+
+
+1. Run simulations for a patient with the disease.  About how many times on average must the test be repeated to achieve the hospital’s requirements?  
+
+A: 13.8425
+```{r}
+repeatrunsp <- function(numruns)
+{
+    totalruns <- vector();
+    for(j in 1:numruns)
+    {
+      postprobd <- 0.001
+      postprobnd <- 1 - postprobd
+      probdisease <- vector();
+      probnodisease <- vector();
+      x <- vector();
+      indexes = 1;
+      while(postprobd <= 0.99999)
+      {
+        data <- dataoflikelihood(disease, 1)
+        x[indexes] <- indexes
+        probdisease[indexes] <- postprobd;
+        probnodisease[indexes] <- postprobnd;
+        denom <- postprobd * disease[data] + postprobnd * nodisease[data];
+        postprobd = postprobd * disease[data]/denom;
+        postprobnd = postprobnd * nodisease[data]/denom;
+   
+        #plot(1:indexes,probdisease, ylim=c(0,1), xlim=c(1, indexes + 1))
+        #Sys.sleep(1);
+        indexes <- indexes + 1;
+      }
+      totalruns[j] <- tail(x, n=1)
+    }
+  hist(totalruns)
+  return(mean(totalruns))
+}
+
+print(repeatrunsp(numruns = 10000))
+```
+
+
+2. Repeat the simulations for a patient without the disease.  About how many times on average must the test be repeated to achieve the hospital’s requirements?
+
+A: 3.7923
+```{r}
+#P(no disease | negative result) = p(ngative result | no disease)*p(no disease)/p(negative result)
+disease <- c(0.91, 0.09)
+nodisease <- c(0.16, 0.84)
+
+repeatrunsn <- function(numruns)
+{
+    totalruns <- vector();
+    for(j in 1:numruns)
+    {
+      postprobd <- 0.001
+      postprobnd <- 1 - postprobd
+      probdisease <- vector();
+      probnodisease <- vector();
+      x <- vector();
+      indexes = 1;
+      while(postprobnd <= 0.99999)
+      {
+        data <- dataoflikelihood(nodisease, 1)
+        x[indexes] <- indexes
+        probdisease[indexes] <- postprobd;
+        probnodisease[indexes] <- postprobnd;
+        denom <- postprobd * disease[data] + postprobnd * nodisease[data];
+        postprobd = postprobd * disease[data]/denom;
+        postprobnd = postprobnd * nodisease[data]/denom;
+   
+        #plot(1:indexes,probdisease, ylim=c(0,1), xlim=c(1, indexes + 1))
+        #Sys.sleep(1);
+        indexes <- indexes + 1;
+      }
+      totalruns[j] <- tail(x, n=1)
+    }
+  hist(totalruns)
+  return(mean(totalruns))
+}
+
+print(repeatrunsn(numruns = 10000))
+```
+
+
+3. The hospital plans to run the test on one million patients per year.  At a cost of $1 per test, about how much
+should the hospital budget to run these tests?  (That is to say, for a million patients, how many tests can 
+the hospital anticipate running?)
+
+A: $3,892,802
+```{r}
+patients <- vector()
+
+testsposave <- 13.8425
+testsnave <- 3.7923
+prior <- 0.01
+
+calcprice <- function(testsposave, testsnave, prior)
+{
+    value <- testsposave*prior+testsnave*(1-prior)
+    cost <- value*1000000
+    return(cost)
+}
+
+calcprice(testsposave, testsnave, prior)
+
+```
+
