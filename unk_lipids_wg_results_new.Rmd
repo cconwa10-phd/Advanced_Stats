@@ -1,0 +1,395 @@
+---
+title: "unk_lipids_wg_results"
+output: pdf_document
+---
+Loading Packages
+```{r}
+library(ggfortify)
+library(ggplot2)
+library(mixOmics)
+library(tidyverse)
+library(RColorBrewer)
+library(ggpubr)
+library(ggforce)
+library(reshape2)
+```
+
+Reading in necessary files
+```{r}
+all_tiss <- read.csv("/Users/ciaraconway/Documents/Advanced_Stats/all_tissue_o_d copy.csv")
+all_tiss_df <- all_tiss[c(1,6,7,21:ncol(all_tiss))]
+one_tiss <- read.csv("/Users/ciaraconway/Documents/Advanced_Stats/one_tissue_o_d copy.csv")
+otiss_df <- one_tiss[c(6, 21:ncol(one_tiss))]
+all_tiss_r <- read.csv("/Users/ciaraconway/Documents/Advanced_Stats/all_tissue_results.csv")
+one_tiss_r <- read.csv("/Users/ciaraconway/Documents/Advanced_Stats/one_tissue_results.csv")
+```
+
+Running PCA on all_tiss & one_tiss
+```{r}
+pc_tiss_df <- all_tiss[c(21:ncol(all_tiss))]
+pc <- prcomp(pc_tiss_df, center=TRUE, scale. = TRUE)
+pc_otiss_df <- one_tiss[c(21:ncol(one_tiss))]
+pc_o <- prcomp(pc_otiss_df, center = TRUE, scale. = TRUE)
+```
+
+Visualizing PCA on all_tiss & one_tiss
+```{r}
+#autoplot(pc, data=all_tiss_df, colour = "By.plasma.type..found..50..in.")
+```
+
+```{r}
+#autoplot(pc_o, data=otiss_df, color = c("yellow3", "violetred3", "turquoise3", "steelblue3", "springgreen3"), colour = "by_tissue")
+```
+***Appear to be outliers
+log10 transformed the intensities to scale the data (all_tiss & one_tiss)
+Visualizing PCA Data - Transformed
+```{r}
+pcl <- prcomp(log10(pc_tiss_df + 1), center=TRUE, scale. = TRUE)
+autoplot(pcl, data=all_tiss_df, colour = "By.plasma.type..found..50..in.")
+```
+
+```{r}
+pc_ol <- prcomp(log10(pc_otiss_df+1), center = TRUE, scale. = TRUE)
+autoplot(pc_ol, data=otiss_df, color = c("yellow3", "violetred3", "turquoise3", "steelblue3", "springgreen3"), colour = "By.tissue..Found..50..in.")
+```
+Visualizing PLSDA Data - Transformed (all_tiss & one_tiss)
+
+```{r}
+Xl <- log10(pc_otiss_df + 1)
+Yl <- otiss_df$By.tissue..Found..50..in.
+plsda.otl <- plsda(Xl, Yl, ncomp = 4)
+plotIndiv(plsda.otl, ellipse = TRUE, legend = TRUE, ind.names = FALSE, point.lwd = 1)
+```
+
+```{r}
+Xla <- log10(pc_tiss_df + 1)
+Yla <- all_tiss_df$By.plasma.type..found..50..in.
+plsda.atl <- plsda(Xla, Yla, ncomp = 4)
+plotIndiv(plsda.atl, ellipse = TRUE, legend = TRUE, ind.names = FALSE, point.lwd = 1)
+```
+
+```{r}
+#Normalize the intensities!!!
+
+labels <- read.csv("/Users/ciaraconway/Documents/Advanced_Stats/labels copy.csv")
+labels_ot <- read.csv("/Users/ciaraconway/Documents/Advanced_Stats/labels_ot copy.csv")
+all_tiss_anova <- all_tiss[c(1,21:ncol(all_tiss))]
+one_tiss_anova <- one_tiss[c(1,21:ncol(one_tiss))]
+#all_tiss_v <- as.vector(labels['FACTORS'])
+#one_tiss_v <- as.vector(labels_ot['FACTORS'])
+#tmydf = setNames(data.frame(t(mydf[,-1])), mydf[,1])
+a_anov_t <- setNames(data.frame(t(all_tiss_anova[-1])), all_tiss_anova[,1])
+o_anov_t <- setNames(data.frame(t(one_tiss_anova[-1])), one_tiss_anova[,1])
+a_anov_f <- cbind(a_anov_t, labels)
+o_anov_f <- cbind(o_anov_t, labels_ot)
+
+anova_func <- function(aov_data, aov_label)
+  {
+  aov_vector <- vector()
+  for(i in 1:ncol(aov_data))
+    {
+      #a_ano_f <- cbind(aov_data[,i],aov_label)
+      #lm <- lm(a_ano_f[,1]~a_ano_f[,2])
+      #aov_vector <- anova(lm)$"Pr(>F)"[1]
+      a_ano_f <- cbind(aov_data[,i],aov_label)
+      anova <- aov(a_ano_f[,1]~a_ano_f[,2])
+      aov_vector[i] <- summary(anova)[[1]][["Pr(>F)"]][1]
+  }
+  return(aov_vector)
+}
+
+
+#row.oneway.anova(all_tiss_anova[2:ncol(all_tiss_anova)], all_tiss_r)
+```
+
+Plot P-Values
+```{r}
+pval_atiss <- anova_func(log10(a_anov_t + 1), labels)
+results_at <- cbind(all_tiss_anova[,1], pval_atiss)
+pval_atissBH <- p.adjust(pval_atiss, method = "BH")
+pval_atissBO <- p.adjust(pval_atiss, method = "bonferroni")
+
+#hist(pval_atiss, breaks=100, border = "skyblue4", col = "skyblue1")
+#hist(pval_atissBH, breaks=100, border = "skyblue4", col = "skyblue1")
+
+p4 <- ggplot(as.data.frame(pval_atiss), aes(x=pval_atiss)) + geom_histogram(bins = 20, color = "black", fill = "lightgreen")
+p5<- ggplot(as.data.frame(pval_atissBH), aes(x=pval_atissBH)) + geom_histogram(bins = 20, color = "black", fill = "green")
+p6 <- ggplot(as.data.frame(pval_atissBO), aes(x=pval_atissBO)) + geom_histogram(bins = 20, color = "black", fill = "darkgreen")
+
+ggarrange(p4,p5,p6, ncol = 1, nrow = 3)
+```
+It appears that for the all_tiss metabolites we can reject the null hypothesis that the means are equal across all 5 labs
+```{r}
+pval_otiss <- anova_func(log10(o_anov_t + 1), labels_ot)
+results_ot <- cbind(one_tiss_anova[,1], pval_otiss)
+pval_otissBH <- p.adjust(pval_otiss, method = "BH")
+pval_otissBO <- p.adjust(pval_atiss, method = "bonferroni")
+#hist(pval_otiss, breaks = 20, border = "skyblue4", col = "skyblue1")
+#lines(c(0.05,0.05), c(-100, 3500), lwd=1, col="red2")
+#hist(pval_otissBH, breaks = 20, border = "skyblue4", col = "skyblue1")
+p7 <- ggplot(as.data.frame(pval_otiss), aes(x=pval_otiss)) + geom_histogram(bins = 20, color = "black", fill = "lightgreen")
+p8<- ggplot(as.data.frame(pval_otissBH), aes(x=pval_otissBH)) + geom_histogram(bins = 20, color = "black", fill = "green")
+p9 <- ggplot(as.data.frame(pval_otissBO), aes(x=pval_otissBO)) + geom_histogram(bins = 20, color = "black", fill = "darkgreen")
+
+ggarrange(p7,p8,p9, ncol = 1, nrow = 3)
+
+```
+```{r}
+#write.csv(results_at, "/Users/ciaraconway/Documents/Advanced_Stats/results_at.csv")
+#write.csv(results_ot, "/Users/ciaraconway/Documents/Advanced_Stats/results_ot.csv")
+```
+
+
+It appears that for the one_tiss metabolites we can reject the null hypothesis that the means are equal across all 5 labs for the majority of the metabolites, where the red line represents the 0.05 mark
+
+Run ANOVA on known metabolites containing MSMS & Tukey Test - IGNORE, BUGGY
+```{r}
+
+
+anova_tukey <- function(ids, aov_data, aov_label)
+{
+  tukey_vector <- data.frame();
+  for(i in 1:ncol(aov_data))
+  {
+    col_name <- as.integer(names(aov_data)[i])
+    #print(col_name)
+    for(j in 1:length(ids))
+    {
+      #print(j)
+      if(col_name == j)
+      {
+        a_ano_f <- cbind(aov_data[,i],aov_label)
+        anova <- aov(a_ano_f[,1]~a_ano_f[,2])
+        #tukey_vector <- rbind(tukey_vector, TukeyHSD(anova, conf.level=.95)$`a_test[, 2]`)
+        TukeyHSD(anova, conf.level=.95)$`a_test[, 2]`
+        }
+      }
+  }
+  return(tukey_vector)
+}
+
+align_id_at <- unique(all_tiss_r[,4])
+at_results_tukey <- anova_tukey(align_id_at, a_anov_t, labels)
+
+```
+
+Testing Tukey Test on single metabolite...
+```{r}
+a_test <- cbind(log10(o_anov_t[,1] + 1), labels_ot)
+anova_test <- aov(log10(a_test[,1] + 1)~a_test[,2])
+tukey_test <- TukeyHSD(anova_test)
+tukey_test
+
+#align_id_at <- unique(all_tiss_r[,4])
+#at_results_tukey <- anova_tukey(align_id_at, a_anov_t, labels)
+```
+
+```{r}
+#align_id_ot <- unique(one_tiss_r[,4])
+#ot_results_tukey <- anova_tukey(align_id_ot, o_anov_t, labels_ot)
+```
+
+Working on: Trying to loop through the Tukey Post Hoc test for all the metabolites that had MSMS results come back. It appears that for the all_tiss that the lab alignments did not have equal means, which is interesting since mass spec relies on the ratio of intensities that come back to partially identify the compound...This means that if there were not feature redundancies among the intensities for the different labs, the compounds may not be the same, actually.  I am going to look at which compounds  I had difficulty identifying and see if they correspond to those metabolites with low pvals from the one-way anova.  This will complete my analysis.
+
+PCA - By Lab
+```{r}
+all_tiss_anova <- all_tiss[c(1,21:ncol(all_tiss))]
+one_tiss_anova <- one_tiss[c(1,21:ncol(one_tiss))]
+a_anov_t <- setNames(data.frame(t(all_tiss_anova[-1])), all_tiss_anova[,1])
+o_anov_t <- setNames(data.frame(t(one_tiss_anova[-1])), one_tiss_anova[,1])
+a_anov_f <- cbind(a_anov_t, labels)
+o_anov_f <- cbind(o_anov_t, labels_ot)
+
+pc_la <- prcomp(log10(a_anov_t + 1), center = TRUE, scale. = TRUE)
+pc_lo <- prcomp(log10(o_anov_t + 1), center = TRUE, scale. = TRUE)
+```
+
+PCA - Plot (All Tissue)
+```{r}
+autoplot(pc_la, data=a_anov_f, color = c("yellow3", "violetred3", "turquoise3", "steelblue3", "springgreen3"), colour = "FACTORS")
+```
+
+PCA - Plot (One Tissue)
+```{r}
+autoplot(pc_lo, data=o_anov_f, color = c("yellow3", "violetred3", "turquoise3", "steelblue3", "springgreen3"), colour = "FACTORS")
+```
+
+P-Values (all_tiss) - Stacked Bar-Graph
+
+```{r}
+all_tiss_r_n <- read.csv("/Users/ciaraconway/Documents/Advanced_Stats/results_at.csv")
+one_tiss_r_n <- read.csv("/Users/ciaraconway/Documents/Advanced_Stats/results_ot.csv")
+
+all_tiss_r_n$pval_atiss = log10(all_tiss_r_n$pval_atiss)
+one_tiss_r_n$pval_otiss = log10(one_tiss_r_n$pval_otiss)
+
+p <- ggplot(data=all_tiss_r_n, aes(x=pval_atiss,fill = Found)) + geom_histogram(bins = 100)
+p +theme(legend.position="bottom")
+pp <- p +theme(legend.position="bottom")
+#P-Values (one_tiss) - Stacked Bar-Graph
+p1 <- ggplot(data=one_tiss_r_n, aes(x=pval_otiss,fill = Found)) + geom_histogram(bins = 100)
+p1+theme(legend.position="bottom")
+pp1 <- p1+theme(legend.position="bottom")
+#p-value distribution of compound classes
+at_classes <- read.csv("all_tiss_classes.csv", header = TRUE)
+at_classes$p.value = log10(at_classes$p.value)
+
+p2 <- ggplot(data=at_classes, aes(x=p.value,fill = Superclass)) + geom_histogram(bins = 100) + scale_fill_brewer(palette=("Paired"))
+p2 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5))
+pp2 <- p2 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5))
+
+ot_classes <- read.csv("one_tiss_classes.csv", header = TRUE)
+ot_classes$pvalues = log10(ot_classes$pvalues)
+
+colourCount = length(unique(ot_classes$Superclass))
+getPalette = colorRampPalette(brewer.pal(9, "Set1"))
+
+p3 <- ggplot(data=ot_classes, aes(x=pvalues, fill = Superclass)) + geom_histogram(bins = 100)
+p3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5))
+pp3<- p3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5))
+#lines(c(0.05,0.05), c(-100, 3500), lwd=1, col="red2")
+
+```
+
+```{r}
+g0 <- one_tiss_r_n %>% ggplot(aes(Found,pval_otiss))
+g2 <- g0 + geom_boxplot(aes(col = Found, fill = Found), alpha = 0.25)
+g3 <- g2 + geom_jitter(aes(col = Found), alpha = 0.5, width = 0.25) +geom_sina(aes(col = Found)) +labs(x = "Found_otiss", y = "P-values - log10",) +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position="none", axis.text=element_text(size=7), axis.title=element_text(size=7,face="bold"))
+g3
+```
+
+```{r}
+h0 <- all_tiss_r_n %>% ggplot(aes(Found,pval_atiss))
+h2 <- h0 + geom_boxplot(aes(col = Found, fill = Found), alpha = 0.25)
+h3 <- h2 + geom_jitter(aes(col = Found), alpha = 0.5, width = 0.25) +geom_sina(aes(col = Found)) +labs(x = "Found_atiss", y = "P-values - log10",) +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position="none", axis.text=element_text(size=7), axis.title=element_text(size=7,face="bold"))
+h3
+```
+
+```{r}
+f0 <- ot_classes %>% ggplot(aes(Superclass,pvalues))
+f2 <- f0 + geom_boxplot(aes(col = Superclass, fill = Superclass), alpha = 0.25)
+f3 <- f2 + geom_jitter(aes(col = Superclass), alpha = 0.5, width = 0.25) +geom_sina(aes(col = Superclass)) +labs(x = "Superclass_otiss", y = "P-values - log10",) +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position="none", axis.text=element_text(size=7), axis.title=element_text(size=7,face="bold"))
+f3
+```
+
+```{r}
+e0 <- at_classes %>% ggplot(aes(Superclass,p.value))
+e2 <- e0 + geom_boxplot(aes(col = Superclass, fill = Superclass), alpha = 0.25)
+e3 <- e2 + geom_jitter(aes(col = Superclass), alpha = 0.5, width = 0.25) +geom_sina(aes(col = Superclass)) +labs(x = "Superclass_atiss", y = "P-values - log10",) +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position="none", axis.text=element_text(size=7), axis.title=element_text(size=7,face="bold"))
+e3
+```
+
+
+All Tissue
+-Find a biologically relevant, rare, identified unknown (files are uploaded)
+One Tissue
+-Do a breakout of each tissue-type and the super-class or class of compounds identified
+-Find a biologically relevant, rare, identified unknown (files are uploaded)
+Both
+-Look at which compounds came back for the Identity Results
+-Analyze the Positive & Negative (*) modes
+-Analyze the classes of compounds that are not classified as lipids
+-Take examples and see if the results match the classes given back - take a selection and figure out what the actual compound is and does it agree with class assignment
+-Do a table of all unknown lipids (*), lipid in all tissue, lipids in each tissue type
+
+
+```{r}
+#z3 <- ggplot(data=ot_classes, aes(x=tiss_type, fill = Superclass)) + geom_histogram(bins = 100)
+#z3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5))
+#zz3<- z3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5))
+
+z3 <- ggplot(melt(ot_classes), aes(x=tiss_type,fill = Superclass)) + geom_bar()
+z3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5)) + geom_text(stat='count', aes(label=..count..), position = position_stack(0.6), size=3)
+zz3<- z3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5), )
+
+
+z3 <- ggplot(melt(ot_classes), aes(x=tiss_type,fill = Superclass)) + geom_bar()
+z3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5))
+zz3<- z3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5), )
+```
+
+
+```{r}
+z4 <- ggplot(melt(at_classes), aes(x=subject_info, fill = Superclass)) + geom_bar()
+z4 + theme(legend.position="right", legend.text = element_text(size = 5), legend.title = element_text(size = 5), axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 4))
+zz4<- z4 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5), axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+```{r}
+ot_classes_f <- filter(ot_classes, Superclass == "Lipids and lipid-like molecules")
+y3 <- ggplot(melt(ot_classes_f), aes(x=tiss_type,fill = Class)) + geom_bar()
+y3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5)) + geom_text(stat='count', aes(label=..count..),position = position_stack(0.6), size=3)
+yy3<- y3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5), )
+
+
+
+y3 <- ggplot(melt(ot_classes_f), aes(x=tiss_type,fill = Class)) + geom_bar()
+y3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5))
+yy3<- y3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5), )
+```
+
+Notes: all tissues should have phospholipids, seem to be missing in Muscle... reason for this? check hybrid and idenity search
+Create a graph to see type? hybrid search? 
+```{r}
+at_classes_f <- filter(at_classes, Superclass == "Lipids and lipid-like molecules")
+y4 <- ggplot(melt(at_classes_f), aes(x=subject_info, fill = Class)) + geom_bar()
+y4 + theme(legend.position="right", legend.text = element_text(size = 5), legend.title = element_text(size = 5), axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 4)) 
+yy4<- y4 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5), axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+```{r}
+oa_classes <- read.csv("a_o_classes.csv", header = TRUE)
+oa_classes_f <- filter(oa_classes, Superclass == "Lipids and lipid-like molecules")
+```
+
+```{r}
+x4 <- ggplot(melt(oa_classes), aes(x=type, fill = Superclass)) + geom_bar()
+x4 + theme(legend.position="right", legend.text = element_text(size = 5), legend.title = element_text(size = 5), axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 5)) +geom_text(stat='count', aes(label=..count..), position = position_stack(0.6), size=2)
+xx4<- x4 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5), axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+```{r}
+x5 <- ggplot(melt(oa_classes_f), aes(x=type, fill = Class)) + geom_bar()
+x5 + theme(legend.position="right", legend.text = element_text(size = 5), legend.title = element_text(size = 5), axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 5)) + geom_text(stat='count', aes(label=..count..), position = position_stack(0.6), size=3)
+xx5<- x5 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5), axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+```
+```{r}
+x6 <- ggplot(melt(oa_classes), aes(x=Superclass, fill = Superclass)) + geom_bar()
+x6 + theme(legend.position="none", legend.text = element_text(size = 5), legend.title = element_text(size = 5), axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 5)) + geom_text(stat='count', aes(label=..count..), vjust=0, size=3)
+xx6<- x6 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5), axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) + geom_text(stat='count', aes(label=..count..), vjust=-1)
+```
+Tables/graphs
+- Workflow - single cmpd analysis
+- SuperClass of all tissues (5 tissues)
+- Class of all tissues for lipids (5 tissues)
+
+- epi-lipidome (separate out) - see if we can figure that out?
+
+new lipid dataset - sulfono - lipids
+- run new lipids dataset on the 496
+
+```{r}
+all_results <- read.csv("all_results_dupes.csv", header = TRUE)
+
+```
+
+
+
+```{r}
+colorCount = length(unique(all_results$Superclass))
+getPalette = colorRampPalette(brewer.pal(9, "Set1"))
+
+w2 <- ggplot(melt(all_results), aes(x=tiss_type)) + geom_bar()
+w2 + theme(legend.position="right", legend.text = element_text(size = 7), legend.title = element_text(size = 7)) + ggtitle("Compound SuperClass - Unknowns")
+
+w3 <- ggplot(melt(all_results), aes(x=tiss_type,fill = Superclass)) + geom_bar()
+w3 + theme(legend.position="right", legend.text = element_text(size = 7), legend.title = element_text(size = 7)) + ggtitle("Compound SuperClass - Unknowns")
+ww3<- w3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 7), plot.title = element_text(size = 7)) + ggtitle("Compound SuperClass - Unknowns")
+```
+```{r}
+all_results_f <- filter(all_results, Superclass == "Lipids and lipid-like molecules")
+```
+
+```{r}
+y3 <- ggplot(melt(all_results_f), aes(x=tiss_type,fill = Class)) + geom_bar()
+y3 + theme(legend.position="right", legend.text = element_text(size = 7), legend.title = element_text(size = 7)) + ggtitle("Compound Class - Lipid & Lipid-like Unknowns")
+yy3<- y3 + theme(legend.position="bottom", legend.text = element_text(size = 5), legend.title = element_text(size = 5), )
+```
+
