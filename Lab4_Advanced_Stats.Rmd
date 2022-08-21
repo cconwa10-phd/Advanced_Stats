@@ -1,0 +1,133 @@
+---
+title: "Lab4_Advanced_Stats"
+output: pdf_document
+---
+
+1) Read the dataset into R using commands something like...
+
+setwd("C:\\classes\\Advanced_Stats_Spring2022\\Lab4_HW1")
+
+myT <- read.table("nc101_scaff_dataCounts.txt",header=TRUE,row.names=1)
+
+
+(2) On a log10-log10 scale, show a plot of the counts for the two samples “D2_01” and “D2_02”.
+
+```{r}
+setwd("/Users/ciaraconway/Documents/R_Files")
+dataT <- read.table("nc101_scaff_dataCounts.txt", header=TRUE, row.names = 1)
+
+dataT$D2_01_log = log10(dataT$D2_01)
+dataT$D2_02_log = log10(dataT$D2_02)
+
+head(dataT)
+```
+
+(2) Plot
+
+A: Yes, it appears that overall, when log transformed, there seems to be a somewhat linear relationship between D2_01 and D2_02.  However, with the earlier points, there seems to be a devation from that relationship
+```{r}
+
+plot(dataT$D2_01_log, dataT$D2_02_log, col="darkmagenta")
+```
+(3) On a log10-log10 scale, plot the variance of all genes (across all samples) vs. the mean (across all genes) with a red line on your graph representing the identity line.  Does the mean equal the variance for these samples?   
+(The commands apply(myT, 1, mean) and apply(myT, 1, var) will be of some use).  
+
+```{r}
+dataT2 <- read.table("nc101_scaff_dataCounts.txt", header=TRUE, row.names = 1)
+#dataT2[,1:11] <- log10(dataT2[,1:11]+1)
+
+dataMean <- apply(dataT2, 1, mean)
+dataVar <- apply(dataT2, 1, var)
+
+dataMean <- log10(dataMean)
+dataVar <- log10(dataVar)
+
+plot(dataMean, dataVar, col="blue")
+#add identity line
+lines(c(-6,6), c(-6,6), col="red")
+```
+(4) Consider the first gene in the spreadsheet (e.g. NC101_00003).  Make a two by two contingency table:
+
+```{r}
+col_labels <- c("Assigned to NC101_00003", "Not assigned to NC101_00003")
+Seq_in_D2_01 <- c(dataT$D2_01[1], sum(dataT$D2_01) - dataT$D2_01[1])
+Seq_in_D2_02 <- c(dataT$D2_02[1], sum(dataT$D2_02) - dataT$D2_02[1])
+
+dataCon <- data.frame(col_labels, Seq_in_D2_01, Seq_in_D2_02)
+dataCon
+```
+use the two sided fisher.test to generate a p-value for the null hypothesis that the columns and rows of the contingency table are independent.
+
+```{r}
+m <- matrix(c(dataT$D2_01[1], sum(dataT$D2_01) - dataT$D2_01[1], dataT$D2_02[1], sum(dataT$D2_02) - dataT$D2_02[1]), nrow = 2)
+fisher.test(m, alternative = "two.sided")
+
+```
+(5) Now generate a p-value for all the genes in the spreadsheet from the Fisher test.  Plot out those p-values in a histogram.  Are they uniformly distributed?  Would you expect them to be?  Are the p-values more significant, less significant or what we would expect under a uniform distribution?  How does the p-value distribution change if you remove low abundance genes (with for example myT <- myT[ (myT$D2_01 + myT$D2_02 > 50),]
+
+```{r}
+pvalues <- vector()
+for(i in 1:nrow(dataT))
+{
+    m <- matrix(c(dataT$D2_01[i], sum(dataT$D2_01) - dataT$D2_01[i], dataT$D2_02[i], sum(dataT$D2_02) -  dataT$D2_02[i]), nrow = 2)
+    ft <- fisher.test(m, alternative = "two.sided")
+    pvalues[i] = ft$p.value
+}
+
+hist(pvalues, col = 'skyblue3', breaks = 50)
+```
+
+
+
+```{r}
+dataT3 <- dataT[(dataT$D2_01 + dataT$D2_02 > 50), ]
+
+pvaluesR <- vector()
+for(i in 1:nrow(dataT3))
+{
+    m <- matrix(c(dataT3$D2_01[i], sum(dataT3$D2_01) - dataT3$D2_01[i], dataT3$D2_02[i], sum(dataT3$D2_02) -  dataT$D2_02[i]), nrow = 2)
+    ft <- fisher.test(m, alternative = "two.sided")
+    pvaluesR[i] = ft$p.value
+}
+
+hist(pvalues, col = 'skyblue3', breaks = 50)
+```
+(6) Add 1 to every value in the table ( with something like myT = myT + 1 ).  This is called adding a pseudo-count.  Now consider the first gene (NC101_00003 ) again.  From the first experiment, calculate 
+	
+expected frequency = p = 
+		(# Assigned to NC101_00003 in D2_01)/total # of sequences in D2_01)
+
+Now use poisson.test to assign a p-value for the null hypothesis that value of p derived from D2_01 could have produced the number of reads observed for this gene in D2_02 
+
+```{r}
+dataT4 <- dataT + 1
+exp_freq <- dataT4$D2_01[1]/sum(dataT4$D2_01)
+poisson.test(dataT4$D2_01[1], sum(dataT4$D2_01), r = exp_freq)
+poisson.test(dataT4$D2_02[1], sum(dataT4$D2_02), r = exp_freq)
+```
+
+(7) Repeat the calculation in (6) for every gene in the spreadsheet.  Graph these p-values against the p-values produced in (5) on a log10-log10 plot.  How well do they agree? 
+
+Answer: They somewhat agree, I see similar linearity, but they are not identical.
+
+```{r}
+### Comparing D2_01 to D2_02
+pvaluesPN <- vector()
+
+for(i in 1:nrow(dataT4))
+{
+    exp_freq3 <- dataT4$D2_01[i]/sum(dataT4$D2_01)
+    pt <- poisson.test(dataT4$D2_02[i], sum(dataT4$D2_02), r=exp_freq3)
+    pvaluesPN[i] <- pt$p.value
+}
+```
+
+```{r}
+pvaluesL <- log10(pvalues)
+pvaluesPNL <- log10(pvaluesPN)
+plot(pvaluesPNL, pvaluesL, col="steelblue")
+
+#add identity line
+#lines(c(-400,400), c(-400,400), col="red")
+```
+
