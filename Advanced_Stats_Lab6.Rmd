@@ -1,0 +1,187 @@
+---
+title: "Lab6_Advanced_Stats"
+output: pdf_document
+---
+
+Due April 14th (2 week lab); send what you have to afodor@uncc.edu with “Lab #6” in the subject line.   As usual, show all of your code.
+(1)	We again return to our RNA seq dataset of E. Coli genes from mice.  
+The URL is here:
+http://afodor.github.io/classes/stats2015/longitdunalRNASeqData.zip
+As before, read and normalize the counts table ( “nc101_scaff_dataCounts.txt “ into R).  For example:
+setwd("C:\\somewhere")
+
+myT<-read.table("nc101_scaff_dataCounts.txt",sep="\t",header=TRUE,row.names=1)
+
+remove rare genes
+myT <- myT[ apply( myT,1, median)> 5,]
+
+myTNorm <- myT
+for ( i in 1:ncol(myT))
+{
+	colSum = sum(myT[,i])
+	myTNorm[,i] =myTNorm[,i]/colSum
+}
+(The first 3 columns are “day 2”, the next 3 columns are “week 12” and the last 5 are “week 18” (even though they say w20)).  
+
+
+```{r}
+rm(list=ls())
+library(ggplot2)
+library(ggpubr)
+theme_set(theme_pubr())
+
+counts6 <- read.table("nc101_scaff_dataCounts.txt", sep = "\t", header = TRUE, row.names = 1)
+annot6 <- read.table("nc101_Annotations.txt", sep = "\t", header = TRUE)
+counts6R <- counts6[apply(counts6,1, median) > 5,]
+counts6RN <- counts6R
+for(i in 1:ncol(counts6R))
+{
+  colSum = sum(counts6R[,i])
+  counts6RN[,i] = counts6RN[,i]/colSum
+  }
+```
+
+(A)	For each row in the spreadsheet, perform a one-way ANOVA with categories “day 2”, “week 12” and “week 18”.  Plot out the histogram of all p-values.  How many genes are significant at a BH FDR-corrected 0.05 threshold. 
+612 significant genes
+
+```{r}
+#counts6T <- setNames(data.frame(t(counts6RN[-1])), counts6RN[,1])
+counts6T <- t(counts6RN)
+#labels <- c("day 2", "day 2", "day 2", "week 12", "week 12", "week 12", "week 18", "week 18", "week 18", "week 18", "week 18")
+labelsF <- factor(c("day 2", "day 2", "day 2", "week 12", "week 12", "week 12", "week 18", "week 18", "week 18", "week 18", "week 18"))
+anova_func <- function(aov_data, aov_label)
+  {
+  aov_vector <- vector()
+  for(i in 1:ncol(aov_data))
+    {
+      #a_ano_f <- cbind(aov_data[,i],aov_label)
+      lm <- lm(aov_data[,i]~aov_label)
+      aov_vector[i] <- anova(lm)$"Pr(>F)"[1]
+      #aov_vector[i] <- summary(anova)[[1]][["Pr(>F)"]][1]
+    }
+  return(aov_vector)
+}
+
+
+lab6A <- anova_func(counts6T, labelsF) #do i really need factors? if i have a list of labels...
+```
+
+```{r}
+pval_adj6 <- p.adjust(lab6A, method = "BH")
+pval_adj6n <- pval_adj6[pval_adj6 <= 0.05]
+
+p7 <- ggplot(as.data.frame(lab6A), aes(x=lab6A)) + geom_histogram(bins = 100, color = "royalblue3", fill = "tomato1")
+p8<- ggplot(as.data.frame(pval_adj6), aes(x=pval_adj6)) + geom_histogram(bins = 100, color = "royalblue2", fill = "tomato2")
+p9 <- ggplot(as.data.frame(pval_adj6n), aes(x=pval_adj6n)) + geom_histogram(bins = 100, color = "royalblue1", fill = "tomato3")
+
+ggarrange(p7,p8,p9, ncol = 1, nrow = 3)
+```
+
+
+(B)	Next make an ANOVA as a linear regression as a function of time (so 2 days, 86 days and 128 days).  Plot out the histogram of all p-values.  How many genes are significant at a BH FDR-corrected 0.05 threshold. 
+
+448 significant genes
+
+```{r}
+labelsT <- c(rep(2,3), rep(86,3), rep(128,5))
+lab6B <- anova_func(counts6T,labelsT)
+```
+
+
+```{r}
+pval_adj6B <- p.adjust(lab6B, method = "BH")
+pval_adj6Bn <- pval_adj6B[pval_adj6B <= 0.05]
+
+p10 <- ggplot(as.data.frame(lab6B), aes(x=lab6B)) + geom_histogram(bins = 100, color = "royalblue3", fill = "goldenrod1")
+p11<- ggplot(as.data.frame(pval_adj6B), aes(x=pval_adj6B)) + geom_histogram(bins = 100, color = "royalblue2", fill = "goldenrod2")
+p12 <- ggplot(as.data.frame(pval_adj6Bn), aes(x=pval_adj6Bn)) + geom_histogram(bins = 100, color = "royalblue1", fill = "goldenrod3")
+
+ggarrange(p10,p11,p12, ncol = 1, nrow = 3)
+```
+(C)	Finally, for each row in the spreadsheet perform an ANVOA comparing the three-parameter model from (A) and the two parameter model from (B).  Plot out the histogram of all p-values.  For how many genes is there a significant difference between these two models at a BH FDR-corrected threshold. 
+
+51 significant genes
+
+```{r}
+anova_func23 <- function(aov_data, factors, labels)
+  {
+  index <- vector()
+  anovaFMP<- vector()
+  anovaRMP <- vector()
+  pvalCom <- vector()
+  for(i in 1:ncol(aov_data))
+    {
+      index[i] <- i
+      
+      lmFM <- lm(aov_data[,i]~factors)
+      anovaFMP[i] <- anova(lmFM)$"Pr(>F)"[1]
+      #anovaFMP[i] <- anovaFM$"Pr(>F)"[1]
+      
+      lmRM <- lm(aov_data[,i]~labels)
+      anovaRMP[i] <- anova(lmRM)$"Pr(>F)"[1]
+      #anovaRMP[i] <- anovaRM$"Pr(>F)"[1]
+      
+      resFM <- sum(residuals(lmFM)^2)
+      resRM <- sum(residuals(lmRM)^2)
+      
+      statF <- (((resRM-resFM)/1)/(resFM/8))
+      pvalCom[i] <- pf(statF, 1, 8, lower.tail = FALSE)
+  }
+  myFrame <- data.frame( index, anovaFMP, anovaRMP, pvalCom)
+  myFrame <- myFrame[ order(myFrame$anovaFMP), ]
+  return(myFrame)
+}
+
+df1c <- anova_func23(counts6T, labelsF, labelsT)
+```
+
+```{r}
+
+pval_adjFM <- p.adjust(df1c$anovaFMP, method = "BH")
+pval_adjFMB <- pval_adjFM[pval_adjFM <= 0.05]
+
+pval_adjRM <- p.adjust(df1c$anovaRMP, method = "BH")
+pval_adjRMB <- pval_adjRM[pval_adjRM <= 0.05]
+
+pval_adjCM <- p.adjust(df1c$pvalCom, method = "BH")
+pval_adjCMB <- pval_adjCM[pval_adjCM <= 0.05]
+
+p1 <- ggplot(data = df1c, aes(x=anovaFMP)) + geom_histogram(bins = 100, color = "black", fill = "lightblue")
+p2<- ggplot(data = df1c, aes(x=anovaRMP)) + geom_histogram(bins = 100, color = "black", fill = "blue")
+p3 <- ggplot(data = df1c, aes(x=pvalCom)) + geom_histogram(bins = 100, color = "black", fill = "darkblue")
+
+ggarrange(p1, p2, p3, ncol = 1, nrow = 3)
+
+#hist(pval_adjFMB, breaks = 100)
+#hist(pval_adjRMB, breaks = 100)
+
+
+```
+
+Adjusted P-Vals
+```{r}
+p4 <- ggplot(as.data.frame(pval_adjFMB), aes(x=pval_adjFMB)) + geom_histogram(bins = 100, color = "black", fill = "lightgreen")
+p5<- ggplot(as.data.frame(pval_adjRMB), aes(x=pval_adjRMB)) + geom_histogram(bins = 100, color = "black", fill = "green")
+p6 <- ggplot(as.data.frame(pval_adjCMB), aes(x=pval_adjCMB)) + geom_histogram(bins = 100, color = "black", fill = "darkgreen")
+
+ggarrange(p4,p5,p6, ncol = 1, nrow = 3)
+```
+
+(D)	 Make three graphs showing the relative abundance of the most significant gene under each of the three ANOVA models.  For (A) and (C), the x-axis will the category (day 3, week 12 and week 18) and the y-axis will be the relative abundance.  Be sure to properly label and title all graphs and axes.  For (B) the x-axis will be time (in days) and the y-axis will be the relative abundance. For the graph of the top hit from (B), include the regression line for the plot from (B).
+
+```{r}
+my3cols <- c("sienna3", "skyblue3", "palevioletred3")
+dfFM <- df1c[order(df1c$anovaFMP),]
+dfRM <- df1c[order(df1c$anovaRMP),]
+dfCM <- df1c[order(df1c$pvalCom),]
+boxplot( as.numeric( counts6RN[ dfFM$index[1],]) ~ labelsF, col = my3cols, main = "FM")
+boxplot(as.numeric( counts6RN[ dfRM$index[1],]) ~ labelsT, col = my3cols, main = "RM")
+boxplot(as.numeric( counts6RN[ dfCM$index[1],]) ~ labelsF, col = my3cols, main = "CM")
+
+```
+
+
+(E)	 Overall, do you think the three parameter model in (A) or the two-parameter model in (B) is more appropriate for these data?  Justify your answer.
+
+
+I would say that the full model (3 parameter) is a better representation, when looking at the boxplots, and how the combined model seems to be more similar to the one way anova over the 2 parameter model.  This seems to make sense since there are more parameters to increase the fit of the model to the data.
