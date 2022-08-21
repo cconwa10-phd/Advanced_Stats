@@ -1,0 +1,104 @@
+---
+title: "Lab5_Advanced_Stats"
+output: pdf_document
+---
+(1A): Download the data from here examining the relationship between the number of cell divisions and cancer risk: https://fodorclasses.github.io/classes/stats2020/cancerRisk.txt
+On a log10-log10 scale graph Lifetime_cancer_risk (on the y-axis) vs. CumulativeCellDivisions (on the x-axis).  (This reproduces Fig. 1 from the paper).
+
+```{r}
+cancerFile <- "cancerRisk.txt"
+cancerData <- read.table(cancerFile, header = TRUE)
+
+plot(log10(cancerData$CumulativeCellDivisions), log10(cancerData$Lifetime_cancer_risk), pch=21, col= "red4", bg= "seagreen3")
+
+```
+
+(1B):   Using the lm function, fit a linear model with Lifetime_cancer_risk as the Y variable and CumulativeCellDivisions as the x-data.  Add the regression line to the plot using the function abline(myLm)  (where myLm is the linear model you created).
+
+```{r}
+linearMod <- lm(CumulativeCellDivisions~Lifetime_cancer_risk, data = cancerData)
+linearModlog <- lm(log10(CumulativeCellDivisions)~log10(Lifetime_cancer_risk), data = cancerData)
+
+linearModlog$coefficients
+plot(log10(cancerData$CumulativeCellDivisions), log10(cancerData$Lifetime_cancer_risk), pch=21, col= "red4", bg= "seagreen3")
+abline(a = linearModlog$coefficients[1], b = linearModlog$coefficients[2])
+
+```
+(1C):  What is the p-value for the null hypothesis that the slope of the regression between these two variables is zero?  What is the r-squared value of the model?
+
+Answer = p-value: 0.002028, Adjusted R-squared:  0.2592 
+
+```{r}
+print(linearMod)
+summary(linearMod)
+```
+
+(1D): Are the assumptions of constant variance and normal distribution of the residues reasonable for this model?  Justify your answer.
+Answer = by looking at the Residuals vs. Fitted plot you cans see that there is relatively constant variance.  by looking at the Normal Q-Q plot you can see that the data is someone normally distributed
+
+```{r}
+plot(linearModlog)
+```
+
+(2) Consider the case-control file for the colorectal adenomas data set that is here:
+	http://afodor.github.io/classes/stats2015/caseControlData.txt
+    A separate file gives obesity (BMI) data for these same subjects:
+	http://afodor.github.io/classes/stats2015/BMI_Data.txt
+
+```{r}
+bmi <- read.table("BMI_Data.txt", sep = "\t", header = TRUE)
+case <- read.table("caseControlData.txt", sep = "\t", header = TRUE)
+
+### Python Merge ###
+new_data <- read.csv("bmi_case_merge.csv", header = TRUE)
+
+```
+
+For each OTU in the spreadsheet, generate a p-value from linear regression comparing BMI to the   relative abundance of each OTU.    Graph out all the p-values.  Do they appear uniformly distributed? Does the microbial community appear to be influencing body weight in this cohort?  Are any of these associations significant at a 10% false discovery rate?
+Hints:  To lookup the ids in the BMI table, you will need to some processing on the “sample” column in the caseControl file.  The following code will convert the a sampleID so that it will match the BMI file.
+	# remove case and control
+key <- sub("case", "", sampleID)
+	key <- sub("control", "", key)
+	
+	# remove extraneous information from the suffix
+	key <- strsplit( key, "_")[[1]][1]
+
+Also, to get the p-value out of the linear model try:
+	anova( myLm)$"Pr(>F)"[1]
+We’ll see why that work shortly in future lectures.
+
+```{r}
+
+lmvector <- vector()
+for(i in 2:ncol(new_data)-1)
+{
+  #print(new_data[i])
+  lm_entry <- lm(new_data$bmi~new_data[,i], data = new_data)
+  #pval <- aov(lm_entry)$"Pr(>F)"[1]
+  pvall <- anova(lm_entry)$"Pr(>F)"[1]
+  lmvector[i-1] <- pvall
+}
+print(lmvector)
+```
+
+Histogram - PVal
+```{r}
+#lmvector <- p.adjust(lmvector)
+hist(lmvector, breaks = 20)
+```
+
+P Val Adjustments
+```{r}
+pval_adj <- p.adjust(lmvector, method = "BH")
+#pval_adj_10 <- p.adjust(lmvector, method = "")
+hist(pval_adj)
+```
+10% False Discovery
+
+```{r}
+pval_adj_10 <- pval_adj[pval_adj<= 0.10]
+hist(pval_adj_10)
+```
+Do they appear uniformly distributed? Does the microbial community appear to be influencing body weight in this cohort?  Are any of these associations significant at a 10% false discovery rate?
+
+Answer = The un-adjusted values seem to be in a somewhat of a uniform distribution. Some seem to hold significance, yes.  No they are not.
