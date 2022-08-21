@@ -1,0 +1,181 @@
+---
+title: "Advanced_Stats_Lab7"
+output: pdf_document
+---
+(1)	Download the dataset.  Perform PCA ordination.  
+(For example:
+rm(list=ls())
+
+setwd("C:\\Users\\afodor\\git\\afodor.github.io\\classes\\stats2015\\")
+
+inFileName <- paste("prePostPhylum.txt", sep ="")
+
+myT <-read.table(inFileName,header=TRUE,sep="\t")
+numCols <- ncol(myT)
+myColClasses <- c(rep("character",4), rep("numeric", numCols-4))
+myT <-read.table(inFileName,header=TRUE,sep="\t",colClasses=myColClasses)
+
+myTData<-myT[,5:10]
+
+myPCOA <- princomp(myTData)
+
+```{r}
+library(ggfortify)
+library(ggplot2)
+library(mixOmics)
+library(ggpubr)
+library(RColorBrewer)
+library(rms)
+library(nlme)
+library(ggforce)
+library(tidyverse)
+
+myT <- read.table("prePostPhylum.txt", header = TRUE, sep = "\t")
+numCols <- ncol(myT)
+colClass <- c(rep("character",4), rep("numeric", numCols-4))
+myTC <- read.table("prePostPhylum.txt", header = TRUE, sep = "\t", colClasses = colClass)
+
+myD <- myTC[,5:10]
+
+pca <- princomp(myD)
+scores <- pca$scores
+
+```
+
+(2)	Graph PCA1 vs. PCA2.  Make three versions of the graph.  One colored by genotype,
+one colored by cage and one colored by timepoint (pre-vs-post)
+
+
+```{r}
+autoplot(pca, data = myTC, colour = "cage")
+```
+```{r}
+autoplot(pca, data = myTC, colour = "time")
+```
+```{r}
+autoplot(pca, data = myTC, colour = "genotype")
+```
+(3)	Fill in the following table for p-values testing the null hypothesis for PCA 1 and 2.  For cage, use a way one-ANOVA.  For genotype and timepoint (“pre” vs “post”) use a t-test	
+
+
+Cage		                0.9920581 (PCA1)               1.629589e-07 (PCA2)
+
+Genotype		            0.9297010 (PCA1)               1.274344e-10 (PCA2)
+
+Time (pre vs. post)   	0.9920581 (PCA1)               1.629589e-07 (PCA2)	                
+
+Which variable seems to be most associated with the first PCA axis?  Which variable is most associated with the second PCA axis?  Does cage seem to be having an effect on these data?
+
+A: Visually it seems that along the first PC that the Time is most associated. For PC2, it appears to be genotype.  The cate does not seem to be having an effect in the first 2 PC's, seen in the graph.
+
+```{r}
+pc1 <- scores[,1]
+pc2 <- scores[,2]
+cage <- myTC$cage
+geno <- myTC$genotype
+t <- myTC$time
+
+dontwannacode2x <- function(pc, cage, geno, t)
+{
+  lm <- lm(pc~cage)
+  pc1C <- anova(lm)$"Pr(>F)"[1]
+  pc1G <- t.test(pc~geno)$p.value
+  pc1T <- t.test(pc~t)$p.value
+  pval <- append(pc1C, pc1G, pc1T)
+  return(pval)
+}
+
+pval1 <- dontwannacode2x(pc1, cage, geno, t)
+pval2 <- dontwannacode2x(pc2, cage, geno, t)
+
+pval1
+pval2
+    
+```
+(4)For the POST timepoints only:
+A.	 For each phyla, graph the relative abundance of that phyla vs. cage.  Does there appear to be a cage effect across different phyla?
+
+A: There does appear to be a slight cage effect across the different phyla, depending on which phyla you look at on the graph below.
+
+```{r}
+myTCF <- myTC[myTC$time == "POST", ]
+a <- ggplot(myTCF, aes(x = cage, y = Tenericutes, fill = cage)) + geom_bar(stat = "identity") + theme(axis.title.x=element_blank(), axis.text=element_text(size=6), axis.title=element_text(size=7,face="bold"),legend.position="none") + scale_fill_brewer(palette="Paired")
+b <- ggplot(myTCF, aes(x = cage, y = Verrucomicrobia, fill = cage)) + geom_bar(stat = "identity") + theme(axis.title.x=element_blank(), axis.text=element_text(size=6), axis.title=element_text(size=7,face="bold"),legend.position="none")+ scale_fill_brewer(palette="Paired")
+c <- ggplot(myTCF, aes(x = cage, y = Bacteroidetes, fill = cage)) + geom_bar(stat = "identity") + theme(axis.title.x=element_blank(), axis.text=element_text(size=6), axis.title=element_text(size=7,face="bold"),legend.position="none")+ scale_fill_brewer(palette="Paired")
+d <- ggplot(myTCF, aes(x = cage, y = Actinobacteria, fill = cage)) + geom_bar(stat = "identity") + theme(axis.title.x=element_blank(), axis.text=element_text(size=6), axis.title=element_text(size=7,face="bold"),legend.position="none")+ scale_fill_brewer(palette="Paired")
+e <- ggplot(myTCF, aes(x = cage, y = Firmicutes, fill = cage)) + geom_bar(stat = "identity") + theme(axis.title.x=element_blank(), axis.text=element_text(size=6), axis.title=element_text(size=7,face="bold"),legend.position="none")+ scale_fill_brewer(palette="Paired")
+f <- ggplot(myTCF, aes(x = cage, y = Proteobacteria, fill = cage)) + geom_bar(stat = "identity") + theme(axis.title.x=element_blank(), axis.text=element_text(size=6), axis.title=element_text(size=7,face="bold"), legend.position="none",)+ scale_fill_brewer(palette="Paired")
+
+ggarrange(a,b,c,d,e,f, ncol = 1, nrow = 6)
+
+```
+B.	For each phyla build a mixed linear model with genotype as the fixed variable and cage as a random variable.  Report the intraclass correlation coefficient for each phyla.  Are there any phyla that are significantly different for genotype in the mixed model at a 10% false discovery rate?
+
+A: there are three phyla that appear to be significantly different: Verrucomicrobia, Firmicutes, and Proteobacteria
+
+```{r}
+linmod <- function(dataF)
+{
+  pvalF <- vector()
+  pvalG <- vector()
+  rhoG <- vector()
+  pvalM <- vector()
+  indexd <- 1
+  ran <- 5:ncol(dataF)
+  for(i in ran)
+  {
+    bug <- dataF[,i]
+    cage <- dataF$cage
+    genotype <- dataF$genotype
+    myFrame <- data.frame(bug, cage, genotype)
+    myLM <- lm(myFrame$bug~myFrame$genotype+myFrame$cage)
+    pvalF[indexd]<- anova(myLM)$"Pr(>F)"[1]
+    
+    M.gls <- gls(bug~genotype, method = "REML", correlation = corCompSymm(form = ~ 1 | cage), data = myFrame)
+    pvalG[indexd] <- anova(M.gls)$"p-value"[2]
+    rhoG[indexd] <- coef(M.gls$modelStruct[1]$corStruct,unconstrained=FALSE)[[1]]
+    
+    M.mixed <- lme( bug~genotype, method = "REML", random = ~1 | cage, data = myFrame)
+    pvalM[indexd] <- unclass(summary(M.mixed))$tTable[2,5]
+    
+    indexd = indexd + 1
+    
+    pvalFc <- p.adjust(pvalF, method = "BH")
+    pvalGc <- p.adjust(pvalG, method = "BH")
+    pvalMc <- p.adjust(pvalM, method = "BH")
+  }
+  myFrame2 <- data.frame(pvalFc, pvalGc, rhoG, pvalMc)
+  return(myFrame2)
+  }
+
+valuesL <- linmod(myTCF)
+valuesL
+```
+```{r}
+b0 <- myTCF %>% ggplot(aes(cage,Tenericutes))
+b2 <- b0 + geom_boxplot(aes(col = cage, fill = cage), alpha = 0.25)
+b3 <- b2 + geom_jitter(aes(col = cage), alpha = 0.5, width = 0.25) +geom_sina(aes(col = cage)) +labs(x = "cage", y = "Tenericutes",) +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position="none", axis.text=element_text(size=4), axis.title=element_text(size=4,face="bold"), axis.title.x=element_blank())
+
+c0 <- myTCF %>% ggplot(aes(cage,Verrucomicrobia))
+c2 <- c0 + geom_boxplot(aes(col = cage, fill = cage), alpha = 0.25)
+c3 <- c2 + geom_jitter(aes(col = cage), alpha = 0.5, width = 0.25) +geom_sina(aes(col = cage)) +labs(x = "cage", y = "Verrucomicrobia",) +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position="none", axis.text=element_text(size=4), axis.title=element_text(size=4,face="bold"), axis.title.x=element_blank())
+
+d0 <- myTCF %>% ggplot(aes(cage,Bacteroidetes))
+d2 <- d0 + geom_boxplot(aes(col = cage, fill = cage), alpha = 0.25)
+d3 <- d2 + geom_jitter(aes(col = cage), alpha = 0.5, width = 0.25) +geom_sina(aes(col = cage)) +labs(x = "cage", y = "Bacteroidetes",) +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position="none", axis.text=element_text(size=4), axis.title=element_text(size=4,face="bold"), axis.title.x=element_blank())
+
+e0 <- myTCF %>% ggplot(aes(cage,Actinobacteria))
+e2 <- e0 + geom_boxplot(aes(col = cage, fill = cage), alpha = 0.25)
+e3 <- e2 + geom_jitter(aes(col = cage), alpha = 0.5, width = 0.25) +geom_sina(aes(col = cage)) +labs(x = "cage", y = "Actinobacteria",) +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position="none", axis.text=element_text(size=4), axis.title=element_text(size=4,face="bold"), axis.title.x=element_blank())
+
+f0 <- myTCF %>% ggplot(aes(cage,Firmicutes))
+f2 <- f0 + geom_boxplot(aes(col = cage, fill = cage), alpha = 0.25)
+f3 <- f2 + geom_jitter(aes(col = cage), alpha = 0.5, width = 0.25) +geom_sina(aes(col = cage)) +labs(x = "cage", y = "Firmicutes",) +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position="none", axis.text=element_text(size=4), axis.title=element_text(size=4,face="bold"), axis.title.x=element_blank())
+
+g0 <- myTCF %>% ggplot(aes(cage,Proteobacteria))
+g2 <- g0 + geom_boxplot(aes(col = cage, fill = cage), alpha = 0.25)
+g3 <- g2 + geom_jitter(aes(col = cage), alpha = 0.5, width = 0.25) +geom_sina(aes(col = cage)) +labs(x = "cage", y = "Proteobacteria",) +theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1), legend.position="none", axis.text=element_text(size=4), axis.title=element_text(size=4,face="bold"), axis.title.x=element_blank())
+
+ggarrange(b3,c3,d3,e3,f3,g3, nrow = 2, ncol = 3)
+
+```
